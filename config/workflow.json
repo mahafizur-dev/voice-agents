@@ -1,0 +1,55 @@
+{
+  "_comment": "Deployed as a Vapi Squad — the documented mechanism for connecting multiple assistants with conditional call transfers. 'from'/'to' reference agent 'name' fields in config/agents/*.json. deploy.js resolves these into Vapi assistantDestinations after creating each assistant.",
+  "name": "${COMPANY_NAME} Support Workflow",
+  "entryAgent": "General Support",
+  "routes": [
+    {
+      "from": "General Support",
+      "to": "Billing & Payments",
+      "message": "Connecting you to billing now.",
+      "condition": "Caller's issue is about a charge, refund, invoice, subscription, or payment method."
+    },
+    {
+      "from": "General Support",
+      "to": "Technical Support",
+      "message": "Let me connect you to technical support.",
+      "condition": "Caller's issue is a bug, error message, login/access problem, or something not working as expected."
+    },
+    {
+      "from": "General Support",
+      "to": "Orders & Returns",
+      "message": "Connecting you to our orders team.",
+      "condition": "Caller wants order status, tracking, an order change, a return, or an exchange."
+    },
+    {
+      "from": "Billing & Payments",
+      "to": "General Support",
+      "message": "Let me get you back to the main line to route this correctly.",
+      "condition": "The issue turns out not to be billing-related after all."
+    },
+    {
+      "from": "Technical Support",
+      "to": "General Support",
+      "message": "Let me get you back to the main line to route this correctly.",
+      "condition": "The issue turns out not to be technical after all."
+    },
+    {
+      "from": "Orders & Returns",
+      "to": "Billing & Payments",
+      "message": "This sounds like a billing question, connecting you now.",
+      "condition": "The order issue is actually a charge or refund amount dispute."
+    },
+    {
+      "from": "Orders & Returns",
+      "to": "Technical Support",
+      "message": "Let's get technical support to look at that with you.",
+      "condition": "The order issue is actually a product defect needing troubleshooting."
+    },
+    {
+      "from": "Orders & Returns",
+      "to": "General Support",
+      "message": "Let me get you back to the main line to route this correctly.",
+      "condition": "It's unclear which department fits."
+    }
+  ]
+}

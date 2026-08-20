@@ -1,0 +1,19 @@
+{
+  "name": "voice-agents",
+  "version": "1.0.0",
+  "private": true,
+  "description": "4 department voice agents (Vapi) tied together by a triage workflow, with call-logging based continuous improvement.",
+  "type": "commonjs",
+  "scripts": {
+    "deploy": "node scripts/deploy.js",
+    "webhook": "node server/webhook.js",
+    "review": "node scripts/review-calls.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
