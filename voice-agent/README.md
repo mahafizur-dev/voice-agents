@@ -25,7 +25,8 @@ inbound call
   calls with live transfers) — defined declaratively in `config/workflow.json`
   and turned into a real squad by `scripts/deploy.js`.
 - Every finished call is POSTed by Vapi to `server/webhook.js`, which appends
-  a structured record to `data/calls.jsonl`.
+  a structured record to an Upstash Redis list (see `lib/callLog.js`), so
+  history survives redeploys on hosts with no persistent disk.
 - `scripts/review-calls.js` reads that log and surfaces calls worth listening
   to — pipeline errors, calls flagged unsuccessful by Vapi's own call
   analysis — so you can fix the prompt that's causing repeat failures.
@@ -113,9 +114,9 @@ npm run review -- --days 30
 npm run review -- --agent "Technical Support"
 ```
 
-Read the flagged transcripts in `data/calls.jsonl` (one JSON object per
-line), find the pattern, edit the relevant `config/agents/*.json` prompt,
-then `npm run deploy` again.
+Read the flagged transcripts (printed inline, or `GET /vapi/logs` on the
+webhook server — see below), find the pattern, edit the relevant
+`config/agents/*.json` prompt, then `npm run deploy` again.
 
 ## File map
 
@@ -124,10 +125,17 @@ config/agents/*.json     4 assistant definitions (prompt, voice, transcriber)
 config/workflow.json     routing rules between the 4 agents (-> Vapi squad)
 config/.deployed.json    generated: assistant/squad IDs, so redeploys update in place
 scripts/deploy.js        creates/updates assistants + squad + phone number attachment
-server/webhook.js        receives Vapi end-of-call-report webhooks, logs to data/calls.jsonl
+server/webhook.js        receives Vapi end-of-call-report webhooks, logs calls via lib/callLog.js
+lib/callLog.js           shared Upstash Redis read/write helpers for the call log
 scripts/review-calls.js  turns the call log into a "what to fix" report
-data/calls.jsonl         generated: one JSON record per finished call
 ```
+
+## Remote log access
+
+`GET /vapi/logs?token=<LOGS_TOKEN>&limit=20` on the webhook server returns the
+most recently logged calls as JSON — useful when the host has no direct
+filesystem/shell access. Set `LOGS_TOKEN` in `.env` to enable it (disabled by
+default); pass the token via `?token=` or an `x-logs-token` header.
 
 ## Customizing further
 

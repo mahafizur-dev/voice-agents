@@ -1,17 +1,15 @@
-// Turns logged calls (data/calls.jsonl, written by server/webhook.js) into a
-// report of where each agent is struggling, so a human can update the prompts
-// in config/agents/*.json. This is the "learning loop": nothing here retrains
-// a model, it just makes recurring failure patterns visible fast.
+// Turns logged calls (stored in Upstash Redis by server/webhook.js, see
+// lib/callLog.js) into a report of where each agent is struggling, so a human
+// can update the prompts in config/agents/*.json. This is the "learning
+// loop": nothing here retrains a model, it just makes recurring failure
+// patterns visible fast.
 //
 // Usage:
 //   npm run review              (last 7 days, all agents)
 //   npm run review -- --days 30
 //   npm run review -- --agent "Billing & Payments"
 require("dotenv").config();
-const fs = require("fs");
-const path = require("path");
-
-const LOG_PATH = path.join(__dirname, "..", "data", "calls.jsonl");
+const { listCalls } = require("../lib/callLog");
 
 const PROBLEM_ENDED_REASONS = new Set([
   "assistant-error",
@@ -33,27 +31,11 @@ function parseArgs() {
   return out;
 }
 
-function loadCalls() {
-  if (!fs.existsSync(LOG_PATH)) return [];
-  return fs
-    .readFileSync(LOG_PATH, "utf8")
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => {
-      try {
-        return JSON.parse(line);
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean);
-}
-
-function main() {
+async function main() {
   const { days, agent } = parseArgs();
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
 
-  let calls = loadCalls().filter((c) => {
+  let calls = (await listCalls()).filter((c) => {
     const t = c.loggedAt ? Date.parse(c.loggedAt) : 0;
     return t >= cutoff;
   });
@@ -101,10 +83,14 @@ function main() {
     console.log("");
   }
 
-  console.log("Next step: read the flagged transcripts in data/calls.jsonl for these call IDs,");
-  console.log("look for a shared pattern (a question the agent keeps mishandling, a missing policy detail,");
-  console.log("a transfer that should have happened earlier), and update the matching prompt in");
-  console.log("config/agents/*.json, then `npm run deploy` again.\n");
+  console.log("Next step: read the flagged transcripts for these call IDs (GET /vapi/logs on the");
+  console.log("webhook server, or fetch them from Upstash directly), look for a shared pattern (a");
+  console.log("question the agent keeps mishandling, a missing policy detail, a transfer that should");
+  console.log("have happened earlier), and update the matching prompt in config/agents/*.json, then");
+  console.log("`npm run deploy` again.\n");
 }
 
-main();
+main().catch((err) => {
+  console.error(err.message);
+  process.exit(1);
+});

@@ -1,5 +1,5 @@
 // Receives Vapi server-side webhooks (configured via each assistant's `server.url`)
-// and appends a structured record per finished call to data/calls.jsonl.
+// and appends a structured record per finished call to Upstash Redis (see lib/callLog.js).
 // That log is the raw material scripts/review-calls.js mines to find where the
 // agents are failing, which is how these agents "improve over time" in practice —
 // voice LLMs don't retrain themselves; improvement means periodically reading
@@ -10,13 +10,8 @@
 // Then expose it publicly (e.g. `ngrok http 8787`) and set WEBHOOK_URL in .env
 // to https://<your-tunnel>/vapi/webhook before running `npm run deploy`.
 require("dotenv").config();
-const fs = require("fs");
-const path = require("path");
 const express = require("express");
-
-const DATA_DIR = path.join(__dirname, "..", "data");
-const LOG_PATH = path.join(DATA_DIR, "calls.jsonl");
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+const { appendCall, listCalls } = require("../lib/callLog");
 
 const app = express();
 app.use(express.json({ limit: "5mb" }));
@@ -39,43 +34,42 @@ app.post("/vapi/webhook", (req, res) => {
 
   if (message.type !== "end-of-call-report") return;
 
-  try {
-    const record = {
-      loggedAt: new Date().toISOString(),
-      callId: message.call?.id ?? null,
-      assistantId: message.call?.assistantId ?? message.assistant?.id ?? null,
-      assistantName: message.assistant?.name ?? null,
-      endedReason: message.endedReason ?? null,
-      startedAt: message.startedAt ?? null,
-      endedAt: message.endedAt ?? null,
-      durationSeconds: message.durationSeconds ?? null,
-      cost: message.cost ?? null,
-      summary: message.analysis?.summary ?? null,
-      successEvaluation: message.analysis?.successEvaluation ?? null,
-      transcript: message.artifact?.transcript ?? message.transcript ?? null,
-    };
-    fs.appendFileSync(LOG_PATH, JSON.stringify(record) + "\n");
-    console.log(`Logged call ${record.callId ?? "(no id)"} -> ${record.assistantName ?? "unknown agent"}`);
-  } catch (err) {
-    console.error("Failed to log call:", err.message);
-  }
+  const record = {
+    loggedAt: new Date().toISOString(),
+    callId: message.call?.id ?? null,
+    assistantId: message.call?.assistantId ?? message.assistant?.id ?? null,
+    assistantName: message.assistant?.name ?? null,
+    endedReason: message.endedReason ?? null,
+    startedAt: message.startedAt ?? null,
+    endedAt: message.endedAt ?? null,
+    durationSeconds: message.durationSeconds ?? null,
+    cost: message.cost ?? null,
+    summary: message.analysis?.summary ?? null,
+    successEvaluation: message.analysis?.successEvaluation ?? null,
+    transcript: message.artifact?.transcript ?? message.transcript ?? null,
+  };
+
+  appendCall(record)
+    .then(() => console.log(`Logged call ${record.callId ?? "(no id)"} -> ${record.assistantName ?? "unknown agent"}`))
+    .catch((err) => console.error("Failed to log call:", err.message));
 });
 
 // Lets you inspect recent logged calls remotely (e.g. on a host with no direct
 // filesystem/shell access) without exposing transcripts publicly.
 // Set LOGS_TOKEN in .env to enable; leave unset to keep this endpoint disabled.
-app.get("/vapi/logs", (req, res) => {
+app.get("/vapi/logs", async (req, res) => {
   const expectedToken = process.env.LOGS_TOKEN;
   if (!expectedToken) return res.status(404).send("not found");
 
   const got = req.header("x-logs-token") || req.query.token;
   if (got !== expectedToken) return res.status(401).send("unauthorized");
 
-  if (!fs.existsSync(LOG_PATH)) return res.json([]);
-
   const limit = Math.min(parseInt(req.query.limit, 10) || 20, 200);
-  const lines = fs.readFileSync(LOG_PATH, "utf8").trim().split("\n").filter(Boolean);
-  res.json(lines.slice(-limit).map((line) => JSON.parse(line)));
+  try {
+    res.json(await listCalls(limit));
+  } catch (err) {
+    res.status(502).send(`Failed to read call log: ${err.message}`);
+  }
 });
 
 app.get("/healthz", (_req, res) => res.send("ok"));
