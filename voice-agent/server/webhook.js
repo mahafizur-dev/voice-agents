@@ -63,5 +63,5 @@ app.post("/vapi/webhook", (req, res) => {
 
 app.get("/healthz", (_req, res) => res.send("ok"));
 
-const port = process.env.WEBHOOK_PORT || 8787;
+const port = process.env.PORT || process.env.WEBHOOK_PORT || 8787;
 app.listen(port, () => console.log(`Webhook server listening on :${port} (POST /vapi/webhook)`));

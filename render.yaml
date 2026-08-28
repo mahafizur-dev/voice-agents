@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: voice-agents-webhook
+    runtime: node
+    plan: free
+    rootDir: voice-agent
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: VAPI_WEBHOOK_SECRET
+        sync: false

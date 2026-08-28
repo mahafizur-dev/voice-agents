@@ -5,6 +5,7 @@
   "description": "4 department voice agents (Vapi) tied together by a triage workflow, with call-logging based continuous improvement.",
   "type": "commonjs",
   "scripts": {
+    "start": "node server/webhook.js",
     "deploy": "node scripts/deploy.js",
     "webhook": "node server/webhook.js",
     "review": "node scripts/review-calls.js"
