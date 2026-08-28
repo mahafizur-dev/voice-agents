@@ -61,6 +61,23 @@ app.post("/vapi/webhook", (req, res) => {
   }
 });
 
+// Lets you inspect recent logged calls remotely (e.g. on a host with no direct
+// filesystem/shell access) without exposing transcripts publicly.
+// Set LOGS_TOKEN in .env to enable; leave unset to keep this endpoint disabled.
+app.get("/vapi/logs", (req, res) => {
+  const expectedToken = process.env.LOGS_TOKEN;
+  if (!expectedToken) return res.status(404).send("not found");
+
+  const got = req.header("x-logs-token") || req.query.token;
+  if (got !== expectedToken) return res.status(401).send("unauthorized");
+
+  if (!fs.existsSync(LOG_PATH)) return res.json([]);
+
+  const limit = Math.min(parseInt(req.query.limit, 10) || 20, 200);
+  const lines = fs.readFileSync(LOG_PATH, "utf8").trim().split("\n").filter(Boolean);
+  res.json(lines.slice(-limit).map((line) => JSON.parse(line)));
+});
+
 app.get("/healthz", (_req, res) => res.send("ok"));
 
 const port = process.env.PORT || process.env.WEBHOOK_PORT || 8787;

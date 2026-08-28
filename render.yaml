@@ -10,3 +10,5 @@ services:
     envVars:
       - key: VAPI_WEBHOOK_SECRET
         sync: false
+      - key: LOGS_TOKEN
+        sync: false
